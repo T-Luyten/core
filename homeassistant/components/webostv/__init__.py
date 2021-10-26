@@ -160,7 +160,10 @@ async def async_connect(client):
         PyLGTVPairException,
         PyLGTVCmdException,
     ):
+        _LOGGER.debug("connecting")
+
         await client.connect()
+        _LOGGER.debug("connected")
 
 
 async def async_setup_tv_finalize(hass, config, conf, client):

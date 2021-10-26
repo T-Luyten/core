@@ -24,7 +24,7 @@ from homeassistant.components.media_player.const import (
     SUPPORT_VOLUME_SET,
     SUPPORT_VOLUME_STEP,
 )
-from homeassistant.components.webostv.const import (
+from .const import (
     ATTR_PAYLOAD,
     ATTR_SOUND_OUTPUT,
     CONF_ON_ACTION,
@@ -81,6 +81,7 @@ async def async_setup_platform(hass, config, async_add_entities, discovery_info=
     entity = LgWebOSMediaPlayerEntity(client, name, customize, on_script)
 
     async_add_entities([entity], update_before_add=False)
+    _LOGGER.debug("custom webos loaded")
 
 
 def cmd(func):
@@ -328,7 +329,36 @@ class LgWebOSMediaPlayerEntity(MediaPlayerEntity):
     async def async_turn_on(self):
         """Turn on the media player."""
         if self._on_script:
+            _LOGGER.debug("Turning on the TV")
             await self._on_script.async_run(context=self._context)
+            await asyncio.sleep(1)
+            _LOGGER.debug("checking for powerstate")
+            try:
+                state = await self._client.get_power_state()
+                _LOGGER.debug("we obtained a powerstate. Conection is still alive")
+            except (
+            asyncio.TimeoutError,
+            asyncio.CancelledError,
+            PyLGTVCmdException,
+            ) as exc:
+                _LOGGER.debug("failed to retrieve powerstate. Will attempt to reconnect")
+                if self._client.is_connected():
+                    _LOGGER.debug("Need to interrupt existing connection")
+                    await self._client.disconnect()
+                    if not self._client.is_connected():
+                        _LOGGER.debug("We are now disconnected")
+                _LOGGER.debug("connecting")
+                with suppress(
+                    OSError,
+                    ConnectionClosed,
+                    ConnectionRefusedError,
+                    asyncio.TimeoutError,
+                    asyncio.CancelledError,
+                    PyLGTVPairException,
+                    PyLGTVCmdException,
+                ):
+                    await self._client.connect()
+                    _LOGGER.debug("connected")
 
     @cmd
     async def async_volume_up(self):
